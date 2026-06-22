@@ -937,6 +937,11 @@ function computeStats(numbers, rangeMin, rangeMax) {
   const sorted = [...numbers].sort((a, b) => a - b);
   const min = sorted[0];
   const max = sorted[sorted.length - 1];
+
+  // Fallback: leiten Range aus den Daten ab, falls nicht übergeben (z. B. Human Checker)
+  if (rangeMin === undefined || rangeMin === null || Number.isNaN(rangeMin)) rangeMin = Math.floor(min);
+  if (rangeMax === undefined || rangeMax === null || Number.isNaN(rangeMax)) rangeMax = Math.ceil(max);
+  if (rangeMax < rangeMin) rangeMax = rangeMin;
   const sum = numbers.reduce((a, b) => a + b, 0);
   const mean = sum / n;
   const median = n % 2 === 0
