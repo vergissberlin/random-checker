@@ -339,6 +339,201 @@
     border-radius: 5px;
     color: var(--text-muted);
   }
+
+  /* ── Human Score Section ───────────────────────────────────────────────── */
+  .section-divider {
+    border: none;
+    border-top: 1px solid var(--border);
+    margin: 4px 0;
+  }
+
+  .section-title {
+    font-size: 17px;
+    font-weight: 700;
+    margin-bottom: 4px;
+  }
+
+  .section-desc {
+    font-size: 13px;
+    color: var(--text-muted);
+    line-height: 1.6;
+    margin-bottom: 20px;
+  }
+
+  textarea.human-input {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 12px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-family: 'Cascadia Code', 'Fira Mono', 'Menlo', monospace;
+    width: 100%;
+    height: 110px;
+    resize: vertical;
+    outline: none;
+    transition: border-color var(--transition);
+    line-height: 1.6;
+  }
+  textarea.human-input:focus { border-color: var(--accent); }
+  textarea.human-input::placeholder { color: var(--text-muted); opacity: 0.7; }
+
+  .upload-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-top: 10px;
+    flex-wrap: wrap;
+  }
+
+  .file-name-lbl { font-size: 12px; color: var(--text-muted); font-family: monospace; }
+  .parse-count-lbl { font-size: 12px; color: var(--text-muted); margin-left: auto; }
+
+  /* Score display */
+  .score-layout {
+    display: flex;
+    align-items: center;
+    gap: 28px;
+    flex-wrap: wrap;
+  }
+
+  .score-left {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+    min-width: 130px;
+  }
+
+  .score-number {
+    font-size: 68px;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+    transition: color 0.5s;
+  }
+
+  .score-label-tag {
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    color: var(--text-muted);
+    text-align: center;
+  }
+
+  .score-bar-track {
+    width: 130px;
+    height: 5px;
+    border-radius: 3px;
+    background: var(--border);
+    overflow: hidden;
+  }
+
+  .score-bar-fill {
+    height: 100%;
+    border-radius: 3px;
+    width: 0%;
+    transition: width 0.9s cubic-bezier(.4,0,.2,1), background-color 0.5s;
+  }
+
+  .score-right { flex: 1; min-width: 180px; }
+
+  .verdict-title {
+    font-size: 15px;
+    font-weight: 700;
+    margin-bottom: 6px;
+    transition: color 0.5s;
+  }
+
+  .verdict-desc {
+    font-size: 13px;
+    color: var(--text-muted);
+    line-height: 1.65;
+  }
+
+  /* Indicator cards */
+  .indicators-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(270px, 1fr));
+    gap: 12px;
+  }
+
+  .ind-card {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 16px;
+  }
+
+  .ind-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8px;
+    gap: 8px;
+  }
+
+  .ind-name { font-size: 12px; font-weight: 600; }
+
+  .ind-score-badge {
+    font-size: 12px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    padding: 2px 8px;
+    border-radius: 10px;
+    flex-shrink: 0;
+    border: 1px solid transparent;
+  }
+
+  .ind-bar-track {
+    height: 4px;
+    background: var(--border);
+    border-radius: 2px;
+    overflow: hidden;
+    margin-bottom: 8px;
+  }
+
+  .ind-bar-fill {
+    height: 100%;
+    border-radius: 2px;
+    transition: width 0.7s ease;
+  }
+
+  .ind-desc { font-size: 12px; color: var(--text-muted); line-height: 1.5; }
+
+  .ind-values {
+    display: flex;
+    gap: 16px;
+    margin-top: 8px;
+  }
+
+  .ind-val { display: flex; flex-direction: column; gap: 2px; }
+
+  .ind-val-label {
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    color: var(--text-muted);
+    opacity: 0.75;
+  }
+
+  .ind-val-value { font-size: 12px; font-family: monospace; color: var(--text); }
+
+  /* Results container */
+  #human-results {
+    flex-direction: column;
+    gap: 20px;
+    display: none;
+  }
+  #human-results.visible { display: flex; }
+
+  @media (max-width: 640px) {
+    .score-layout { flex-direction: column; align-items: flex-start; }
+    .indicators-grid { grid-template-columns: 1fr; }
+  }
 </style>
 </head>
 <body>
@@ -469,6 +664,102 @@
         <div class="algo-props" id="ai-props"></div>
       </div>
     </div>
+  </div>
+
+
+  <hr class="section-divider">
+
+  <!-- Human Number Checker – Input -->
+  <div class="card">
+    <h2 class="section-title">Eigene Zahlen prüfen</h2>
+    <p class="section-desc">Gib eine Zahlenliste ein (0–100) oder lade eine CSV-/Textdatei hoch. Die Analyse bewertet anhand statistischer Merkmale, wie wahrscheinlich es ist, dass diese Zahlen von Menschen – und nicht von einem Algorithmus – ausgewählt wurden.</p>
+
+    <div class="field">
+      <label for="human-input">Zahlen eingeben (getrennt durch Komma, Leerzeichen oder Zeilenumbruch)</label>
+      <textarea class="human-input" id="human-input" placeholder="Beispiel: 7, 42, 13, 3, 77, 23, 17, 7, 33, 51 …&#10;&#10;Hinweis: Mindestens 20 Zahlen im Bereich 0–100 werden empfohlen."></textarea>
+    </div>
+
+    <div class="upload-row">
+      <label class="btn-secondary" style="cursor:pointer;" for="human-file">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+          <polyline points="17 8 12 3 7 8"/>
+          <line x1="12" y1="3" x2="12" y2="15"/>
+        </svg>
+        Datei hochladen (.csv / .txt)
+      </label>
+      <input type="file" id="human-file" accept=".csv,.txt,.tsv" style="display:none">
+      <span class="file-name-lbl" id="human-file-name"></span>
+      <span class="parse-count-lbl" id="human-parse-count"></span>
+    </div>
+
+    <div class="controls-actions" style="margin-top:16px;">
+      <button class="btn-primary" id="analyze-btn" disabled>
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="11" cy="11" r="8"/>
+          <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+        </svg>
+        Analysieren
+      </button>
+      <span id="human-error" style="font-size:13px; color:var(--danger); display:none;"></span>
+    </div>
+  </div>
+
+  <!-- Human Analysis Results -->
+  <div id="human-results">
+
+    <!-- Score Card -->
+    <div class="card">
+      <div class="score-layout">
+        <div class="score-left">
+          <div class="score-number" id="hr-score-num">—</div>
+          <div class="score-label-tag">Menschlichkeitsscore</div>
+          <div class="score-bar-track">
+            <div class="score-bar-fill" id="hr-score-bar"></div>
+          </div>
+        </div>
+        <div class="score-right">
+          <div class="verdict-title" id="hr-verdict-title">—</div>
+          <div class="verdict-desc" id="hr-verdict-desc">—</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Indicator Cards -->
+    <div class="indicators-grid" id="hr-indicators"></div>
+
+    <!-- Histogram -->
+    <div class="card">
+      <div class="chart-header">
+        <span class="chart-title">Häufigkeitsverteilung der eigenen Zahlen</span>
+        <div class="chart-legend">
+          <div class="legend-item">
+            <div class="legend-dot" style="background:var(--accent)"></div>
+            <span>Häufigkeit</span>
+          </div>
+          <div class="legend-item">
+            <div class="legend-dot" style="background:var(--warn)"></div>
+            <span>&gt; 2× Erwartung</span>
+          </div>
+          <div class="legend-item">
+            <div class="legend-dot" style="border:2px dashed var(--text-muted); background:transparent; width:18px; height:2px; border-radius:0;"></div>
+            <span>Erwartungswert</span>
+          </div>
+        </div>
+      </div>
+      <div id="hr-chart"></div>
+    </div>
+
+    <!-- Stats -->
+    <div class="stats-grid">
+      <div class="stat-card"><div class="stat-label">Anzahl</div><div class="stat-value" id="hr-n">—</div></div>
+      <div class="stat-card"><div class="stat-label">Min</div><div class="stat-value" id="hr-min">—</div></div>
+      <div class="stat-card"><div class="stat-label">Max</div><div class="stat-value" id="hr-max">—</div></div>
+      <div class="stat-card"><div class="stat-label">Mittelwert</div><div class="stat-value" id="hr-mean">—</div></div>
+      <div class="stat-card"><div class="stat-label">Median</div><div class="stat-value" id="hr-median">—</div></div>
+      <div class="stat-card"><div class="stat-label">Std. Abw.</div><div class="stat-value" id="hr-std">—</div></div>
+    </div>
+
   </div>
 
 </main>
@@ -804,6 +1095,214 @@ function exportCSV() {
   URL.revokeObjectURL(url);
 }
 
+// ─── Human Score Analysis ─────────────────────────────────────────────────────
+
+function clamp(v, lo, hi) { return v < lo ? lo : v > hi ? hi : v; }
+
+function parseHumanInput(text) {
+  const tokens = text.split(/[\s,;|\t\r\n]+/);
+  const nums = [];
+  for (const t of tokens) {
+    const v = parseFloat(t.trim());
+    if (!isNaN(v)) nums.push(Math.round(clamp(v, 0, 100)));
+  }
+  return nums;
+}
+
+function extractNumbersFromFile(text) {
+  // For CSV exports from this app (format: "index,value"), take second column only
+  const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+  if (lines.length > 1 && /^[a-zA-Z]/.test(lines[0])) {
+    const cols = lines[0].split(/[,;]/).length;
+    if (cols >= 2) {
+      const vals = [];
+      for (let i = 1; i < lines.length; i++) {
+        const parts = lines[i].split(/[,;]/);
+        const v = parseFloat(parts[parts.length - 1]);
+        if (!isNaN(v)) vals.push(v);
+      }
+      if (vals.length > 0) return vals.join('\n');
+    }
+  }
+  return text;
+}
+
+function scoreColor(s) {
+  if (s >= 67) return getStyle('--success');
+  if (s >= 34) return getStyle('--warn');
+  return getStyle('--danger');
+}
+
+function analyzeHumanLikelihood(numbers) {
+  const n = numbers.length;
+  const ind = [];
+
+  // 1. Ungerade-Bevorzugung
+  // Zufällig: 50/101 ≈ 49.5%; Menschen: ~58%
+  const oddRatio = numbers.filter(x => x % 2 !== 0).length / n;
+  ind.push({
+    name: 'Ungerade-Bevorzugung',
+    desc: 'Menschen empfinden ungerade Zahlen als "zufälliger" und wählen sie häufiger.',
+    score: clamp((oddRatio - 0.495) / (0.58 - 0.495) * 100, 0, 100),
+    weight: 0.15,
+    actual: (oddRatio * 100).toFixed(1) + ' %',
+    expected: '~49.5 % (zufällig)'
+  });
+
+  // 2. Mittelbereich-Bevorzugung (25–75)
+  // Zufällig: 51/101 ≈ 50.5%; Menschen: ~63%
+  const midRatio = numbers.filter(x => x >= 25 && x <= 75).length / n;
+  ind.push({
+    name: 'Mittelbereich (25–75)',
+    desc: 'Menschen meiden Extremwerte (0–24 und 76–100) und wählen bevorzugt mittlere Zahlen.',
+    score: clamp((midRatio - 0.505) / (0.63 - 0.505) * 100, 0, 100),
+    weight: 0.20,
+    actual: (midRatio * 100).toFixed(1) + ' %',
+    expected: '~50.5 % (zufällig)'
+  });
+
+  // 3. Runde-Zahlen-Vermeidung (Vielfache von 5)
+  // Zufällig: 21/101 ≈ 20.8%; Menschen: ~12%
+  const roundRatio = numbers.filter(x => x % 5 === 0).length / n;
+  ind.push({
+    name: 'Runde-Zahlen-Vermeidung',
+    desc: 'Zahlen wie 5, 10, 20, 50 wirken nicht zufällig – Menschen meiden sie bewusst.',
+    score: clamp((0.208 - roundRatio) / (0.208 - 0.12) * 100, 0, 100),
+    weight: 0.15,
+    actual: (roundRatio * 100).toFixed(1) + ' %',
+    expected: '~20.8 % (zufällig)'
+  });
+
+  // 4. 7er-Faktor (Zahlen die die Ziffer 7 enthalten)
+  // Zufällig: 19/101 ≈ 18.8%; Menschen: ~27%
+  const sevenRatio = numbers.filter(x => String(x).includes('7')).length / n;
+  ind.push({
+    name: '7er-Faktor',
+    desc: '7 ist weltweit die beliebteste „zufällige" Zahl. Menschen über-repräsentieren Zahlen mit der Ziffer 7.',
+    score: clamp((sevenRatio - 0.188) / (0.27 - 0.188) * 100, 0, 100),
+    weight: 0.15,
+    actual: (sevenRatio * 100).toFixed(1) + ' %',
+    expected: '~18.8 % (zufällig)'
+  });
+
+  // 5. Wiederholungsvermeidung (konsekutive Duplikate)
+  const consRepeats = numbers.filter((x, i) => i > 0 && x === numbers[i - 1]).length;
+  const expectedRepeats = (n - 1) / 101;
+  ind.push({
+    name: 'Wiederholungsvermeidung',
+    desc: 'Menschen nennen dieselbe Zahl selten zweimal hintereinander – das fühlt sich nicht zufällig an.',
+    score: clamp(1 - consRepeats / Math.max(expectedRepeats * 3, 1), 0, 1) * 100,
+    weight: 0.15,
+    actual: consRepeats + '×',
+    expected: '~' + expectedRepeats.toFixed(1) + '× (zufällig)'
+  });
+
+  // 6. Ungleichmäßigkeit – Chi²-Test (20 Buckets, df=19)
+  const chi20 = new Array(20).fill(0);
+  for (const x of numbers) chi20[Math.min(Math.floor(x / 5), 19)]++;
+  const expB = n / 20;
+  const chiVal = chi20.reduce((a, o) => a + (o - expB) ** 2 / expB, 0);
+  const chiCrit = 30.144; // α=0.05, df=19
+  ind.push({
+    name: 'Ungleichmäßigkeit (χ²)',
+    desc: 'Menschliche Zahlenfolgen sind selten gleichmäßig verteilt – bevorzugte Zahlen erzeugen Häufungen.',
+    score: clamp((chiVal - chiCrit) / chiCrit * 100, 0, 100),
+    weight: 0.20,
+    actual: chiVal.toFixed(1),
+    expected: '< ' + chiCrit + ' (zufällig)'
+  });
+
+  const totalW = ind.reduce((a, b) => a + b.weight, 0);
+  const score = Math.round(ind.reduce((a, b) => a + b.score * b.weight, 0) / totalW);
+  return { score, indicators: ind };
+}
+
+function getVerdict(score) {
+  if (score >= 80) return {
+    title: 'Sehr wahrscheinlich von Menschen erstellt',
+    desc: 'Die Zahlen zeigen deutliche menschliche Muster: Bevorzugung ungerader Zahlen und der Ziffer 7, Konzentration im mittleren Bereich, Vermeidung runder Werte und kaum direkte Wiederholungen.'
+  };
+  if (score >= 60) return {
+    title: 'Eher von Menschen erstellt',
+    desc: 'Mehrere Indikatoren deuten auf menschliche Auswahl hin. Typische Muster wie die Bevorzugung bestimmter Zahlen oder das Meiden runder Werte sind erkennbar.'
+  };
+  if (score >= 40) return {
+    title: 'Nicht eindeutig bestimmbar',
+    desc: 'Die Zahlen zeigen weder klare menschliche noch maschinelle Muster. Eine eindeutige Zuordnung ist auf Basis dieser Stichprobe nicht möglich.'
+  };
+  if (score >= 20) return {
+    title: 'Eher maschinell erstellt',
+    desc: 'Die Zahlen weisen nur schwache menschliche Merkmale auf. Viele Indikatoren sprechen für eine gleichmäßige, algorithmische Verteilung.'
+  };
+  return {
+    title: 'Sehr wahrscheinlich maschinell erstellt',
+    desc: 'Die Zahlen zeigen kaum typisch menschliche Muster und entsprechen einer Gleichverteilung – wie sie Zufallsalgorithmen erzeugen.'
+  };
+}
+
+function renderHumanResults(numbers) {
+  const analysis = analyzeHumanLikelihood(numbers);
+  const stats = computeStats(numbers);
+  const verdict = getVerdict(analysis.score);
+  const color = scoreColor(analysis.score);
+
+  // Score
+  const scoreEl = document.getElementById('hr-score-num');
+  scoreEl.textContent = analysis.score + '%';
+  scoreEl.style.color = color;
+
+  const bar = document.getElementById('hr-score-bar');
+  bar.style.backgroundColor = color;
+  bar.style.width = '0%';
+  setTimeout(() => { bar.style.width = analysis.score + '%'; }, 60);
+
+  const verdictTitleEl = document.getElementById('hr-verdict-title');
+  verdictTitleEl.textContent = verdict.title;
+  verdictTitleEl.style.color = color;
+  document.getElementById('hr-verdict-desc').textContent = verdict.desc;
+
+  // Indicators
+  document.getElementById('hr-indicators').innerHTML = analysis.indicators.map(ind => {
+    const c = scoreColor(ind.score);
+    return `<div class="ind-card">
+      <div class="ind-top">
+        <span class="ind-name">${ind.name}</span>
+        <span class="ind-score-badge" style="color:${c}; border-color:${c};">${Math.round(ind.score)}%</span>
+      </div>
+      <div class="ind-bar-track">
+        <div class="ind-bar-fill" style="width:${ind.score}%; background:${c};"></div>
+      </div>
+      <div class="ind-desc">${ind.desc}</div>
+      <div class="ind-values">
+        <div class="ind-val">
+          <span class="ind-val-label">Gemessen</span>
+          <span class="ind-val-value">${ind.actual}</span>
+        </div>
+        <div class="ind-val">
+          <span class="ind-val-label">Zufällig erwartet</span>
+          <span class="ind-val-value">${ind.expected}</span>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+
+  // Histogram
+  document.getElementById('hr-chart').innerHTML = renderHistogram(stats);
+
+  // Stats
+  document.getElementById('hr-n').textContent = numbers.length;
+  document.getElementById('hr-min').textContent = stats.min;
+  document.getElementById('hr-max').textContent = stats.max;
+  document.getElementById('hr-mean').textContent = stats.mean.toFixed(1);
+  document.getElementById('hr-median').textContent = stats.median.toFixed(1);
+  document.getElementById('hr-std').textContent = stats.stdDev.toFixed(2);
+
+  // Show results
+  const resultsEl = document.getElementById('human-results');
+  resultsEl.classList.add('visible');
+  setTimeout(() => resultsEl.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
+}
+
 // ─── Event Listeners ──────────────────────────────────────────────────────────
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -826,6 +1325,48 @@ document.addEventListener('DOMContentLoaded', () => {
 
   document.getElementById('generate-btn').addEventListener('click', generate);
   document.getElementById('export-btn').addEventListener('click', exportCSV);
+
+  // ── Human Checker ────────────────────────────────────────────────────────────
+  const humanInput = document.getElementById('human-input');
+  const analyzeBtn = document.getElementById('analyze-btn');
+  const parseCountEl = document.getElementById('human-parse-count');
+  const humanErrorEl = document.getElementById('human-error');
+
+  function updateParseState() {
+    const nums = parseHumanInput(humanInput.value);
+    if (nums.length === 0) {
+      parseCountEl.textContent = '';
+      analyzeBtn.disabled = true;
+    } else {
+      parseCountEl.textContent = `${nums.length} Zahl${nums.length !== 1 ? 'en' : ''} erkannt${nums.length < 20 ? ' (mind. 20 empfohlen)' : ''}`;
+      analyzeBtn.disabled = nums.length < 5;
+    }
+    humanErrorEl.style.display = 'none';
+  }
+
+  humanInput.addEventListener('input', updateParseState);
+
+  document.getElementById('human-file').addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    document.getElementById('human-file-name').textContent = file.name;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      humanInput.value = extractNumbersFromFile(ev.target.result);
+      updateParseState();
+    };
+    reader.readAsText(file);
+  });
+
+  analyzeBtn.addEventListener('click', () => {
+    const nums = parseHumanInput(humanInput.value);
+    if (nums.length < 5) {
+      humanErrorEl.textContent = 'Bitte mindestens 5 Zahlen eingeben.';
+      humanErrorEl.style.display = 'inline';
+      return;
+    }
+    renderHumanResults(nums);
+  });
 
   document.getElementById('theme-toggle').addEventListener('click', () => {
     const html = document.documentElement;
