@@ -1,0 +1,805 @@
+<!doctype html>
+<html lang="de" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Random Number Checker</title>
+<style>
+  :root {
+    --transition: 0.2s ease;
+  }
+
+  [data-theme="dark"] {
+    --bg: #0f1117;
+    --surface: #1a1d27;
+    --surface2: #252836;
+    --border: #2e3248;
+    --text: #e2e8f0;
+    --text-muted: #8892a4;
+    --accent: #6366f1;
+    --accent-dim: #4f52cc;
+    --success: #22c55e;
+    --warn: #f59e0b;
+    --danger: #ef4444;
+    --chart-line: #6366f180;
+  }
+
+  [data-theme="light"] {
+    --bg: #f1f5f9;
+    --surface: #ffffff;
+    --surface2: #f8fafc;
+    --border: #e2e8f0;
+    --text: #1e293b;
+    --text-muted: #64748b;
+    --accent: #4f46e5;
+    --accent-dim: #4338ca;
+    --success: #16a34a;
+    --warn: #d97706;
+    --danger: #dc2626;
+    --chart-line: #4f46e580;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    font-size: 14px;
+    line-height: 1.5;
+  }
+
+  header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 0 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 56px;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-weight: 700;
+    font-size: 16px;
+    letter-spacing: -0.3px;
+  }
+
+  .logo svg { color: var(--accent); }
+
+  .header-actions { display: flex; align-items: center; gap: 12px; }
+
+  button {
+    cursor: pointer;
+    border: none;
+    font-family: inherit;
+    font-size: 13px;
+    transition: background var(--transition), opacity var(--transition);
+  }
+
+  .btn-icon {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    display: grid;
+    place-items: center;
+  }
+  .btn-icon:hover { background: var(--border); }
+
+  .btn-primary {
+    background: var(--accent);
+    color: #fff;
+    padding: 0 20px;
+    height: 38px;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    white-space: nowrap;
+  }
+  .btn-primary:hover { background: var(--accent-dim); }
+  .btn-primary:active { opacity: 0.85; }
+
+  .btn-secondary {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 0 14px;
+    height: 38px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .btn-secondary:hover { background: var(--border); }
+
+  main {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 24px 16px 48px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+  }
+
+  .controls-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 16px;
+    align-items: end;
+  }
+
+  @media (max-width: 640px) {
+    .controls-grid { grid-template-columns: 1fr; }
+    .controls-actions { flex-direction: column; }
+  }
+
+  .field { display: flex; flex-direction: column; gap: 6px; }
+
+  label {
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-muted);
+  }
+
+  select, input[type="number"] {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 0 12px;
+    height: 38px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-family: inherit;
+    width: 100%;
+    outline: none;
+    transition: border-color var(--transition);
+  }
+  select:focus, input:focus { border-color: var(--accent); }
+  select:disabled, input:disabled { opacity: 0.45; cursor: not-allowed; }
+
+  .controls-actions {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+    padding-top: 4px;
+  }
+
+  /* Chart */
+  .chart-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+  }
+
+  .chart-title { font-weight: 600; font-size: 15px; }
+
+  .chart-legend {
+    display: flex;
+    gap: 16px;
+    font-size: 12px;
+    color: var(--text-muted);
+    flex-wrap: wrap;
+  }
+
+  .legend-item { display: flex; align-items: center; gap: 6px; }
+
+  .legend-dot {
+    width: 10px; height: 10px; border-radius: 2px;
+    flex-shrink: 0;
+  }
+
+  #chart-svg-wrapper {
+    width: 100%;
+    overflow-x: auto;
+  }
+
+  #chart-svg-wrapper svg {
+    width: 100%;
+    display: block;
+  }
+
+  .chart-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 200px;
+    color: var(--text-muted);
+    gap: 8px;
+    font-size: 13px;
+  }
+
+  /* Stats */
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+    gap: 12px;
+  }
+
+  .stat-card {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .stat-label {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-muted);
+  }
+
+  .stat-value {
+    font-size: 22px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    color: var(--text);
+    transition: color 0.3s;
+  }
+
+  .stat-card.chi-pass .stat-value { color: var(--success); }
+  .stat-card.chi-fail .stat-value { color: var(--danger); }
+
+  .stat-sub {
+    font-size: 11px;
+    color: var(--text-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  @keyframes pulse {
+    0% { opacity: 1; }
+    50% { opacity: 0.5; }
+    100% { opacity: 1; }
+  }
+  .stat-updating { animation: pulse 0.4s ease; }
+
+  /* Algo info */
+  .algo-info-grid {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 16px;
+    align-items: start;
+  }
+
+  .algo-badge {
+    background: var(--accent);
+    color: #fff;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 4px 10px;
+    border-radius: 6px;
+    white-space: nowrap;
+    letter-spacing: 0.3px;
+    align-self: center;
+  }
+
+  .algo-name { font-weight: 700; font-size: 15px; margin-bottom: 4px; }
+  .algo-desc { color: var(--text-muted); font-size: 13px; line-height: 1.6; }
+
+  .algo-props {
+    display: flex;
+    gap: 12px;
+    margin-top: 10px;
+    flex-wrap: wrap;
+  }
+
+  .algo-prop {
+    font-size: 11px;
+    padding: 3px 8px;
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    color: var(--text-muted);
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+    </svg>
+    Random Number Checker
+  </div>
+  <div class="header-actions">
+    <button class="btn-icon" id="theme-toggle" title="Theme wechseln">
+      <svg id="theme-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/>
+        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+        <line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/>
+        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+      </svg>
+    </button>
+  </div>
+</header>
+
+<main>
+
+  <!-- Controls -->
+  <div class="card">
+    <div class="controls-grid">
+      <div class="field">
+        <label for="algo-select">Algorithmus</label>
+        <select id="algo-select">
+          <option value="native">Math.random() — Browser-nativ</option>
+          <option value="lcg">LCG — Linear Congruential Generator</option>
+          <option value="xorshift">Xorshift32</option>
+          <option value="mt">Mersenne Twister (MT19937)</option>
+          <option value="midsquare">Middle-Square Method</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="count-select">Stichprobenanzahl</label>
+        <select id="count-select">
+          <option value="100">100 Zahlen</option>
+          <option value="500">500 Zahlen</option>
+          <option value="1000" selected>1.000 Zahlen</option>
+          <option value="5000">5.000 Zahlen</option>
+          <option value="10000">10.000 Zahlen</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="seed-input">Seed</label>
+        <input type="number" id="seed-input" value="42" min="1" max="999999999" placeholder="z.B. 42">
+      </div>
+    </div>
+    <div class="controls-actions" style="margin-top:16px;">
+      <button class="btn-primary" id="generate-btn">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <polygon points="5 3 19 12 5 21 5 3"/>
+        </svg>
+        Generieren
+      </button>
+      <button class="btn-secondary" id="export-btn" disabled>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+        </svg>
+        CSV Export
+      </button>
+    </div>
+  </div>
+
+  <!-- Chart -->
+  <div class="card">
+    <div class="chart-header">
+      <span class="chart-title">Häufigkeitsverteilung (0–100)</span>
+      <div class="chart-legend">
+        <div class="legend-item">
+          <div class="legend-dot" style="background:var(--accent)"></div>
+          <span>Häufigkeit</span>
+        </div>
+        <div class="legend-item">
+          <div class="legend-dot" style="background:var(--warn)"></div>
+          <span>&gt; 2× Erwartung</span>
+        </div>
+        <div class="legend-item">
+          <div class="legend-dot" style="border:2px dashed var(--text-muted); background:transparent; width:18px; height:2px; border-radius:0;"></div>
+          <span>Erwartungswert</span>
+        </div>
+      </div>
+    </div>
+    <div id="chart-svg-wrapper">
+      <div class="chart-empty">
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" opacity="0.4">
+          <rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/>
+        </svg>
+        <span>Klicke auf <strong>Generieren</strong> um zu starten</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Stats -->
+  <div class="stats-grid" id="stats-panel">
+    <div class="stat-card"><div class="stat-label">Min</div><div class="stat-value" id="s-min">—</div></div>
+    <div class="stat-card"><div class="stat-label">Max</div><div class="stat-value" id="s-max">—</div></div>
+    <div class="stat-card"><div class="stat-label">Mittelwert</div><div class="stat-value" id="s-mean">—</div></div>
+    <div class="stat-card"><div class="stat-label">Median</div><div class="stat-value" id="s-median">—</div></div>
+    <div class="stat-card"><div class="stat-label">Std. Abw.</div><div class="stat-value" id="s-std">—</div></div>
+    <div class="stat-card" id="chi-card">
+      <div class="stat-label">Chi²-Test</div>
+      <div class="stat-value" id="s-chi">—</div>
+      <div class="stat-sub" id="s-chi-sub">α=0.05, df=100, krit.=124.34</div>
+    </div>
+  </div>
+
+  <!-- Algo Info -->
+  <div class="card" id="algo-info-card">
+    <div class="algo-info-grid">
+      <span class="algo-badge" id="ai-quality">—</span>
+      <div>
+        <div class="algo-name" id="ai-name">Wähle einen Algorithmus</div>
+        <div class="algo-desc" id="ai-desc">Informationen werden angezeigt, sobald ein Algorithmus ausgewählt ist.</div>
+        <div class="algo-props" id="ai-props"></div>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<script>
+// ─── Algorithm Implementations ───────────────────────────────────────────────
+
+function makeNative() {
+  return () => Math.random();
+}
+
+function makeLCG(seed) {
+  // Numerical Recipes constants
+  const a = 1664525, c = 1013904223, m = 2 ** 32;
+  let s = seed >>> 0;
+  return () => {
+    s = ((Math.imul(a, s) + c) >>> 0);
+    return s / m;
+  };
+}
+
+function makeXorshift(seed) {
+  let s = (seed >>> 0) || 1;
+  return () => {
+    s ^= s << 13;
+    s ^= s >>> 17;
+    s ^= s << 5;
+    s >>>= 0;
+    return s / 4294967296;
+  };
+}
+
+function makeMT(seed) {
+  const N = 624, M = 397;
+  const MATRIX_A = 0x9908b0df;
+  const UPPER_MASK = 0x80000000;
+  const LOWER_MASK = 0x7fffffff;
+  const mt = new Uint32Array(N);
+  let mti = N + 1;
+
+  function init(s) {
+    mt[0] = s >>> 0;
+    for (let i = 1; i < N; i++) {
+      mt[i] = (Math.imul(1812433253, mt[i - 1] ^ (mt[i - 1] >>> 30)) + i) >>> 0;
+    }
+    mti = N;
+  }
+
+  function generate() {
+    const mag01 = [0, MATRIX_A];
+    let kk, y;
+    for (kk = 0; kk < N - M; kk++) {
+      y = (mt[kk] & UPPER_MASK) | (mt[kk + 1] & LOWER_MASK);
+      mt[kk] = mt[kk + M] ^ (y >>> 1) ^ mag01[y & 1];
+    }
+    for (; kk < N - 1; kk++) {
+      y = (mt[kk] & UPPER_MASK) | (mt[kk + 1] & LOWER_MASK);
+      mt[kk] = mt[kk + (M - N)] ^ (y >>> 1) ^ mag01[y & 1];
+    }
+    y = (mt[N - 1] & UPPER_MASK) | (mt[0] & LOWER_MASK);
+    mt[N - 1] = mt[M - 1] ^ (y >>> 1) ^ mag01[y & 1];
+    mti = 0;
+  }
+
+  init((seed >>> 0) || 1);
+
+  return () => {
+    if (mti >= N) generate();
+    let y = mt[mti++];
+    y ^= y >>> 11;
+    y ^= (y << 7) & 0x9d2c5680;
+    y ^= (y << 15) & 0xefc60000;
+    y ^= y >>> 18;
+    return (y >>> 0) / 4294967296;
+  };
+}
+
+function makeMiddleSquare(seed) {
+  // 8-digit middle-square
+  let s = Math.abs(seed) % 100000000 || 42;
+  return () => {
+    const sq = String(s * s).padStart(16, '0');
+    s = parseInt(sq.substring(4, 12), 10);
+    return s / 100000000;
+  };
+}
+
+// ─── Algorithm Metadata ───────────────────────────────────────────────────────
+
+const ALGOS = {
+  native: {
+    name: 'Math.random() — Browser-nativ',
+    quality: 'Browser-intern',
+    qualityColor: '#6366f1',
+    desc: 'Die im Browser eingebaute Zufallsfunktion. In modernen Engines (V8, SpiderMonkey) wird xorshift128+ verwendet. Die genaue Implementierung ist browser-abhängig. Ein benutzerdefinierter Seed ist nicht möglich.',
+    props: ['Kein Seed', 'xorshift128+ (V8)', 'Periode: 2^128'],
+    make: makeNative,
+    seedable: false,
+  },
+  lcg: {
+    name: 'LCG — Linear Congruential Generator',
+    quality: 'Klassisch',
+    qualityColor: '#f59e0b',
+    desc: 'Einer der ältesten und bekanntesten PRNGs. Verwendet die Formel s = (a·s + c) mod 2³² mit den Numerical-Recipes-Konstanten. Schnell und einfach, aber mit bekannten Schwächen: Zahlen liegen auf Hyperebenen (Marsaglia-Phänomen).',
+    props: ['Periode: 2^32', 'a=1664525, c=1013904223', 'Linear kongruent'],
+    make: makeLCG,
+    seedable: true,
+  },
+  xorshift: {
+    name: 'Xorshift32',
+    quality: 'Gut',
+    qualityColor: '#22c55e',
+    desc: 'Von George Marsaglia 2003 vorgestellt. Verwendet ausschließlich XOR- und Shift-Operationen, die auf moderner Hardware extrem schnell sind. Besteht die meisten statistischen Tests. Nicht geeignet für kryptografische Zwecke.',
+    props: ['Periode: 2^32 − 1', 'Nur XOR + Shifts', '3-Zeilen-Implementierung'],
+    make: makeXorshift,
+    seedable: true,
+  },
+  mt: {
+    name: 'Mersenne Twister (MT19937)',
+    quality: 'Hochwertig',
+    qualityColor: '#22c55e',
+    desc: 'Von Matsumoto und Nishimura (1998) entwickelt. Benannt nach seiner astronomisch langen Periode von 2^19937 − 1. Besteht den Diehard-Testbatch komplett. Der Standard-PRNG in Python, Ruby und vielen anderen Sprachen.',
+    props: ['Periode: 2^19937 − 1', '624-Word-Zustand', 'Besteht Diehard-Tests'],
+    make: makeMT,
+    seedable: true,
+  },
+  midsquare: {
+    name: 'Middle-Square Method',
+    quality: 'Historisch',
+    qualityColor: '#ef4444',
+    desc: 'Von John von Neumann 1946 vorgeschlagen. Das älteste Computerprogramm zur Zufallszahlenerzeugung. Quadriert die aktuelle Zahl und extrahiert die mittleren Ziffern. Degeneriert schnell: viele Seeds führen zu kurzen Zyklen oder kollabieren zu 0.',
+    props: ['Kurze Periode', 'Degeneriert leicht', '8-stellig (historisch)'],
+    make: makeMiddleSquare,
+    seedable: true,
+  },
+};
+
+// ─── Statistics ───────────────────────────────────────────────────────────────
+
+function computeStats(numbers) {
+  const n = numbers.length;
+  const sorted = [...numbers].sort((a, b) => a - b);
+  const min = sorted[0];
+  const max = sorted[sorted.length - 1];
+  const sum = numbers.reduce((a, b) => a + b, 0);
+  const mean = sum / n;
+  const median = n % 2 === 0
+    ? (sorted[n / 2 - 1] + sorted[n / 2]) / 2
+    : sorted[Math.floor(n / 2)];
+  const variance = numbers.reduce((acc, x) => acc + (x - mean) ** 2, 0) / n;
+  const stdDev = Math.sqrt(variance);
+
+  // Histogram buckets (20 × width 5)
+  const buckets = new Array(20).fill(0);
+  for (const x of numbers) {
+    const b = Math.min(Math.floor(x / 5), 19);
+    buckets[b]++;
+  }
+
+  // Chi-square with 101 integer buckets (0–100)
+  const chiBuckets = new Array(101).fill(0);
+  for (const x of numbers) {
+    const idx = Math.round(Math.min(Math.max(x, 0), 100));
+    chiBuckets[idx]++;
+  }
+  const expected = n / 101;
+  const chiSq = chiBuckets.reduce((acc, obs) => acc + (obs - expected) ** 2 / expected, 0);
+  const chiCritical = 124.342; // α=0.05, df=100
+  const chiPass = chiSq < chiCritical;
+
+  return { min, max, mean, median, stdDev, buckets, chiSq, chiPass, n };
+}
+
+// ─── Chart Rendering ──────────────────────────────────────────────────────────
+
+function getStyle(varName) {
+  return getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
+}
+
+function renderHistogram(stats) {
+  const W = 800, H = 280;
+  const PAD = { top: 20, right: 20, bottom: 40, left: 54 };
+  const chartW = W - PAD.left - PAD.right;
+  const chartH = H - PAD.top - PAD.bottom;
+  const n = stats.n;
+  const buckets = stats.buckets;
+  const maxVal = Math.max(...buckets, 1);
+  const expected = n / 20;
+  const barW = chartW / 20;
+  const gap = 2;
+
+  const accent = getStyle('--accent');
+  const warn = getStyle('--warn');
+  const textMuted = getStyle('--text-muted');
+  const border = getStyle('--border');
+  const surface2 = getStyle('--surface2');
+
+  // Y-axis scale
+  const yTicks = 5;
+  const yMax = Math.ceil(maxVal / yTicks) * yTicks;
+
+  let svg = `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Häufigkeitshistogramm">`;
+
+  // Background
+  svg += `<rect width="${W}" height="${H}" fill="${surface2}" rx="8"/>`;
+
+  // Gridlines + Y-axis labels
+  for (let i = 0; i <= yTicks; i++) {
+    const val = Math.round((yMax / yTicks) * i);
+    const y = PAD.top + chartH - (val / yMax) * chartH;
+    svg += `<line x1="${PAD.left}" y1="${y}" x2="${PAD.left + chartW}" y2="${y}" stroke="${border}" stroke-width="1"/>`;
+    svg += `<text x="${PAD.left - 8}" y="${y + 4}" text-anchor="end" fill="${textMuted}" font-size="10" font-family="system-ui">${val}</text>`;
+  }
+
+  // Bars
+  for (let i = 0; i < 20; i++) {
+    const count = buckets[i];
+    const bh = (count / yMax) * chartH;
+    const x = PAD.left + i * barW + gap;
+    const y = PAD.top + chartH - bh;
+    const color = count > 2 * expected ? warn : accent;
+    const rangeStart = i * 5;
+    const rangeEnd = i * 5 + 4;
+
+    svg += `<rect x="${x}" y="${y}" width="${barW - gap * 2}" height="${Math.max(bh, 0)}" fill="${color}" rx="2" opacity="0.9">
+      <title>${rangeStart}–${rangeEnd}: ${count}× (erwartet ~${Math.round(expected)})</title>
+    </rect>`;
+  }
+
+  // Expected value line
+  const expectedY = PAD.top + chartH - (expected / yMax) * chartH;
+  svg += `<line x1="${PAD.left}" y1="${expectedY}" x2="${PAD.left + chartW}" y2="${expectedY}" stroke="${textMuted}" stroke-width="1.5" stroke-dasharray="5,4" opacity="0.7"/>`;
+  svg += `<text x="${PAD.left + chartW + 4}" y="${expectedY + 4}" fill="${textMuted}" font-size="10" font-family="system-ui">⌀</text>`;
+
+  // X-axis labels (every 4th bucket = every 20 units)
+  for (let i = 0; i <= 20; i += 4) {
+    const x = PAD.left + i * barW;
+    svg += `<line x1="${x}" y1="${PAD.top + chartH}" x2="${x}" y2="${PAD.top + chartH + 4}" stroke="${border}" stroke-width="1"/>`;
+    svg += `<text x="${x}" y="${PAD.top + chartH + 16}" text-anchor="middle" fill="${textMuted}" font-size="11" font-family="system-ui">${i * 5}</text>`;
+  }
+
+  // Axis lines
+  svg += `<line x1="${PAD.left}" y1="${PAD.top}" x2="${PAD.left}" y2="${PAD.top + chartH}" stroke="${border}" stroke-width="1"/>`;
+  svg += `<line x1="${PAD.left}" y1="${PAD.top + chartH}" x2="${PAD.left + chartW}" y2="${PAD.top + chartH}" stroke="${border}" stroke-width="1"/>`;
+
+  // X-axis title
+  svg += `<text x="${PAD.left + chartW / 2}" y="${H - 6}" text-anchor="middle" fill="${textMuted}" font-size="11" font-family="system-ui">Wert (Bucket-Breite: 5)</text>`;
+
+  svg += `</svg>`;
+  return svg;
+}
+
+// ─── UI Updates ───────────────────────────────────────────────────────────────
+
+function setStatValue(id, value, extra = '') {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.textContent = value;
+  el.classList.remove('stat-updating');
+  void el.offsetWidth; // reflow
+  el.classList.add('stat-updating');
+  if (extra && el.nextElementSibling?.classList.contains('stat-sub')) {
+    // handled separately
+  }
+}
+
+function updateStats(stats) {
+  setStatValue('s-min', stats.min);
+  setStatValue('s-max', stats.max);
+  setStatValue('s-mean', stats.mean.toFixed(1));
+  setStatValue('s-median', stats.median.toFixed(1));
+  setStatValue('s-std', stats.stdDev.toFixed(2));
+  setStatValue('s-chi', stats.chiPass ? 'PASS' : 'FAIL');
+  document.getElementById('s-chi-sub').textContent = `χ² = ${stats.chiSq.toFixed(1)} (krit. 124.34)`;
+
+  const chiCard = document.getElementById('chi-card');
+  chiCard.classList.remove('chi-pass', 'chi-fail');
+  chiCard.classList.add(stats.chiPass ? 'chi-pass' : 'chi-fail');
+}
+
+function updateAlgoInfo(key) {
+  const a = ALGOS[key];
+  if (!a) return;
+  document.getElementById('ai-name').textContent = a.name;
+  document.getElementById('ai-desc').textContent = a.desc;
+  const badge = document.getElementById('ai-quality');
+  badge.textContent = a.quality;
+  badge.style.background = a.qualityColor;
+
+  const propsEl = document.getElementById('ai-props');
+  propsEl.innerHTML = a.props.map(p => `<span class="algo-prop">${p}</span>`).join('');
+}
+
+// ─── Main Logic ───────────────────────────────────────────────────────────────
+
+let lastNumbers = null;
+
+function generate() {
+  const algoKey = document.getElementById('algo-select').value;
+  const count = parseInt(document.getElementById('count-select').value, 10);
+  const seed = parseInt(document.getElementById('seed-input').value, 10) || 42;
+
+  const algo = ALGOS[algoKey];
+  const rng = algo.make(seed);
+
+  const numbers = [];
+  for (let i = 0; i < count; i++) {
+    numbers.push(Math.round(rng() * 100));
+  }
+
+  lastNumbers = numbers;
+  document.getElementById('export-btn').disabled = false;
+
+  const stats = computeStats(numbers);
+  updateStats(stats);
+
+  const wrapper = document.getElementById('chart-svg-wrapper');
+  wrapper.innerHTML = renderHistogram(stats);
+}
+
+function exportCSV() {
+  if (!lastNumbers) return;
+  const csv = 'index,value\n' + lastNumbers.map((v, i) => `${i + 1},${v}`).join('\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `random-${document.getElementById('algo-select').value}-${lastNumbers.length}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ─── Event Listeners ──────────────────────────────────────────────────────────
+
+document.addEventListener('DOMContentLoaded', () => {
+  const algoSelect = document.getElementById('algo-select');
+  const seedInput = document.getElementById('seed-input');
+
+  algoSelect.addEventListener('change', () => {
+    const key = algoSelect.value;
+    const seedable = ALGOS[key].seedable;
+    seedInput.disabled = !seedable;
+    updateAlgoInfo(key);
+  });
+
+  document.getElementById('generate-btn').addEventListener('click', generate);
+  document.getElementById('export-btn').addEventListener('click', exportCSV);
+
+  document.getElementById('theme-toggle').addEventListener('click', () => {
+    const html = document.documentElement;
+    const next = html.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+    html.setAttribute('data-theme', next);
+  });
+
+  // Init
+  updateAlgoInfo(algoSelect.value);
+});
+</script>
+</body>
+</html>
