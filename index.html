@@ -161,7 +161,7 @@
 
   .controls-grid {
     display: grid;
-    grid-template-columns: 1fr 1fr 1fr;
+    grid-template-columns: repeat(4, 1fr);
     gap: 16px;
     align-items: end;
   }
@@ -170,6 +170,15 @@
     .controls-grid { grid-template-columns: 1fr; }
     .controls-actions { flex-direction: column; }
   }
+
+  .range-custom {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    margin-top: 4px;
+  }
+  .range-custom input { flex: 1; min-width: 0; }
+  .range-custom .range-sep { flex-shrink: 0; color: var(--text-muted); font-size: 14px; }
 
   .field { display: flex; flex-direction: column; gap: 6px; }
 
@@ -594,6 +603,23 @@
         <label for="seed-input">Seed</label>
         <input type="number" id="seed-input" value="42" min="1" max="999999999" placeholder="z.B. 42">
       </div>
+      <div class="field">
+        <label for="range-select">Bereich</label>
+        <select id="range-select">
+          <option value="0,100">0 – 100 (Standard)</option>
+          <option value="1,6">1 – 6 (Würfel)</option>
+          <option value="1,10">1 – 10</option>
+          <option value="1,20">1 – 20</option>
+          <option value="1,100">1 – 100</option>
+          <option value="0,255">0 – 255</option>
+          <option value="custom">Benutzerdefiniert …</option>
+        </select>
+        <div class="range-custom" id="range-custom" style="display:none;">
+          <input type="number" id="range-min" value="0" min="0" max="99999" placeholder="Von">
+          <span class="range-sep">–</span>
+          <input type="number" id="range-max" value="100" min="1" max="100000" placeholder="Bis">
+        </div>
+      </div>
     </div>
     <div class="controls-actions" style="margin-top:16px;">
       <button class="btn-primary" id="generate-btn">
@@ -614,7 +640,7 @@
   <!-- Chart -->
   <div class="card">
     <div class="chart-header">
-      <span class="chart-title">Häufigkeitsverteilung (0–100)</span>
+      <span class="chart-title" id="chart-title">Häufigkeitsverteilung (0–100)</span>
       <div class="chart-legend">
         <div class="legend-item">
           <div class="legend-dot" style="background:var(--accent)"></div>
@@ -899,7 +925,14 @@ const ALGOS = {
 
 // ─── Statistics ───────────────────────────────────────────────────────────────
 
-function computeStats(numbers) {
+function chiCritical95(df) {
+  // Wilson-Hilferty approximation for χ²(df, α=0.05)
+  const z = 1.6448536;
+  const a = 1 - 2 / (9 * df) + z * Math.sqrt(2 / (9 * df));
+  return df * a * a * a;
+}
+
+function computeStats(numbers, rangeMin, rangeMax) {
   const n = numbers.length;
   const sorted = [...numbers].sort((a, b) => a - b);
   const min = sorted[0];
@@ -912,25 +945,31 @@ function computeStats(numbers) {
   const variance = numbers.reduce((acc, x) => acc + (x - mean) ** 2, 0) / n;
   const stdDev = Math.sqrt(variance);
 
-  // Histogram buckets (20 × width 5)
-  const buckets = new Array(20).fill(0);
+  const rangeSize = rangeMax - rangeMin + 1;
+  const numBuckets = Math.min(20, rangeSize);
+  const bucketWidth = rangeSize / numBuckets;
+
+  // Histogram buckets (up to 20, scaled to range)
+  const buckets = new Array(numBuckets).fill(0);
   for (const x of numbers) {
-    const b = Math.min(Math.floor(x / 5), 19);
+    const b = Math.min(Math.floor((x - rangeMin) / bucketWidth), numBuckets - 1);
     buckets[b]++;
   }
 
-  // Chi-square with 101 integer buckets (0–100)
-  const chiBuckets = new Array(101).fill(0);
+  // Chi-square (one bucket per integer in range)
+  const chiBuckets = new Array(rangeSize).fill(0);
   for (const x of numbers) {
-    const idx = Math.round(Math.min(Math.max(x, 0), 100));
+    const idx = Math.min(Math.max(x - rangeMin, 0), rangeSize - 1);
     chiBuckets[idx]++;
   }
-  const expected = n / 101;
-  const chiSq = chiBuckets.reduce((acc, obs) => acc + (obs - expected) ** 2 / expected, 0);
-  const chiCritical = 124.342; // α=0.05, df=100
-  const chiPass = chiSq < chiCritical;
+  const expectedChi = n / rangeSize;
+  const chiSq = chiBuckets.reduce((acc, obs) => acc + (obs - expectedChi) ** 2 / expectedChi, 0);
+  const df = rangeSize - 1;
+  const chiCrit = chiCritical95(Math.max(df, 1));
+  const chiPass = chiSq < chiCrit;
 
-  return { min, max, mean, median, stdDev, buckets, chiSq, chiPass, n };
+  return { min, max, mean, median, stdDev, buckets, numBuckets, bucketWidth,
+           rangeMin, rangeMax, chiSq, chiCrit, chiPass, n };
 }
 
 // ─── Chart Rendering ──────────────────────────────────────────────────────────
@@ -944,12 +983,11 @@ function renderHistogram(stats) {
   const PAD = { top: 20, right: 20, bottom: 40, left: 54 };
   const chartW = W - PAD.left - PAD.right;
   const chartH = H - PAD.top - PAD.bottom;
-  const n = stats.n;
-  const buckets = stats.buckets;
+  const { n, buckets, numBuckets, bucketWidth, rangeMin, rangeMax } = stats;
   const maxVal = Math.max(...buckets, 1);
-  const expected = n / 20;
-  const barW = chartW / 20;
-  const gap = 2;
+  const expected = n / numBuckets;
+  const barW = chartW / numBuckets;
+  const gap = numBuckets > 10 ? 2 : 3;
 
   const accent = getStyle('--accent');
   const warn = getStyle('--warn');
@@ -957,13 +995,10 @@ function renderHistogram(stats) {
   const border = getStyle('--border');
   const surface2 = getStyle('--surface2');
 
-  // Y-axis scale
   const yTicks = 5;
   const yMax = Math.ceil(maxVal / yTicks) * yTicks;
 
   let svg = `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Häufigkeitshistogramm">`;
-
-  // Background
   svg += `<rect width="${W}" height="${H}" fill="${surface2}" rx="8"/>`;
 
   // Gridlines + Y-axis labels
@@ -975,17 +1010,18 @@ function renderHistogram(stats) {
   }
 
   // Bars
-  for (let i = 0; i < 20; i++) {
+  for (let i = 0; i < numBuckets; i++) {
     const count = buckets[i];
     const bh = (count / yMax) * chartH;
     const x = PAD.left + i * barW + gap;
     const y = PAD.top + chartH - bh;
     const color = count > 2 * expected ? warn : accent;
-    const rangeStart = i * 5;
-    const rangeEnd = i * 5 + 4;
+    const labelStart = Math.round(rangeMin + i * bucketWidth);
+    const labelEnd = Math.round(rangeMin + (i + 1) * bucketWidth - 1);
+    const label = labelStart === labelEnd ? `${labelStart}` : `${labelStart}–${labelEnd}`;
 
-    svg += `<rect x="${x}" y="${y}" width="${barW - gap * 2}" height="${Math.max(bh, 0)}" fill="${color}" rx="2" opacity="0.9">
-      <title>${rangeStart}–${rangeEnd}: ${count}× (erwartet ~${Math.round(expected)})</title>
+    svg += `<rect x="${x}" y="${y}" width="${Math.max(barW - gap * 2, 1)}" height="${Math.max(bh, 0)}" fill="${color}" rx="2" opacity="0.9">
+      <title>${label}: ${count}× (erwartet ~${Math.round(expected)})</title>
     </rect>`;
   }
 
@@ -994,19 +1030,23 @@ function renderHistogram(stats) {
   svg += `<line x1="${PAD.left}" y1="${expectedY}" x2="${PAD.left + chartW}" y2="${expectedY}" stroke="${textMuted}" stroke-width="1.5" stroke-dasharray="5,4" opacity="0.7"/>`;
   svg += `<text x="${PAD.left + chartW + 4}" y="${expectedY + 4}" fill="${textMuted}" font-size="10" font-family="system-ui">⌀</text>`;
 
-  // X-axis labels (every 4th bucket = every 20 units)
-  for (let i = 0; i <= 20; i += 4) {
+  // X-axis labels (up to 6 ticks, evenly spaced)
+  const maxTicks = Math.min(numBuckets, 6);
+  const tickStep = numBuckets / maxTicks;
+  for (let t = 0; t <= maxTicks; t++) {
+    const i = Math.round(t * tickStep);
     const x = PAD.left + i * barW;
+    const labelVal = Math.round(rangeMin + i * bucketWidth);
     svg += `<line x1="${x}" y1="${PAD.top + chartH}" x2="${x}" y2="${PAD.top + chartH + 4}" stroke="${border}" stroke-width="1"/>`;
-    svg += `<text x="${x}" y="${PAD.top + chartH + 16}" text-anchor="middle" fill="${textMuted}" font-size="11" font-family="system-ui">${i * 5}</text>`;
+    svg += `<text x="${x}" y="${PAD.top + chartH + 16}" text-anchor="middle" fill="${textMuted}" font-size="11" font-family="system-ui">${labelVal}</text>`;
   }
 
   // Axis lines
   svg += `<line x1="${PAD.left}" y1="${PAD.top}" x2="${PAD.left}" y2="${PAD.top + chartH}" stroke="${border}" stroke-width="1"/>`;
   svg += `<line x1="${PAD.left}" y1="${PAD.top + chartH}" x2="${PAD.left + chartW}" y2="${PAD.top + chartH}" stroke="${border}" stroke-width="1"/>`;
 
-  // X-axis title
-  svg += `<text x="${PAD.left + chartW / 2}" y="${H - 6}" text-anchor="middle" fill="${textMuted}" font-size="11" font-family="system-ui">Wert (Bucket-Breite: 5)</text>`;
+  const bwLabel = Number.isInteger(bucketWidth) ? bucketWidth : bucketWidth.toFixed(1);
+  svg += `<text x="${PAD.left + chartW / 2}" y="${H - 6}" text-anchor="middle" fill="${textMuted}" font-size="11" font-family="system-ui">Wert (Bucket-Breite: ${bwLabel})</text>`;
 
   svg += `</svg>`;
   return svg;
@@ -1033,7 +1073,7 @@ function updateStats(stats) {
   setStatValue('s-median', stats.median.toFixed(1));
   setStatValue('s-std', stats.stdDev.toFixed(2));
   setStatValue('s-chi', stats.chiPass ? 'PASS' : 'FAIL');
-  document.getElementById('s-chi-sub').textContent = `χ² = ${stats.chiSq.toFixed(1)} (krit. 124.34)`;
+  document.getElementById('s-chi-sub').textContent = `χ² = ${stats.chiSq.toFixed(1)} (krit. ${stats.chiCrit.toFixed(2)})`;
 
   const chiCard = document.getElementById('chi-card');
   chiCard.classList.remove('chi-pass', 'chi-fail');
@@ -1057,6 +1097,19 @@ function updateAlgoInfo(key) {
 
 let lastNumbers = null;
 
+function getRangeValues() {
+  const sel = document.getElementById('range-select');
+  if (sel.value === 'custom') {
+    const lo = parseInt(document.getElementById('range-min').value, 10);
+    const hi = parseInt(document.getElementById('range-max').value, 10);
+    const min = isNaN(lo) ? 0 : lo;
+    const max = isNaN(hi) ? 100 : hi;
+    return { min: Math.min(min, max), max: Math.max(min, max) };
+  }
+  const [min, max] = sel.value.split(',').map(Number);
+  return { min, max };
+}
+
 function generate() {
   const algoKey = document.getElementById('algo-select').value;
   const countSelectVal = document.getElementById('count-select').value;
@@ -1064,20 +1117,24 @@ function generate() {
     ? (parseInt(document.getElementById('count-custom-input').value, 10) || 1000)
     : parseInt(countSelectVal, 10);
   const seed = parseInt(document.getElementById('seed-input').value, 10) || 42;
+  const { min: rangeMin, max: rangeMax } = getRangeValues();
 
   const algo = ALGOS[algoKey];
   const rng = algo.make(seed);
+  const span = rangeMax - rangeMin + 1;
 
   const numbers = [];
   for (let i = 0; i < count; i++) {
-    numbers.push(Math.round(rng() * 100));
+    numbers.push(Math.floor(rng() * span) + rangeMin);
   }
 
   lastNumbers = numbers;
   document.getElementById('export-btn').disabled = false;
 
-  const stats = computeStats(numbers);
+  const stats = computeStats(numbers, rangeMin, rangeMax);
   updateStats(stats);
+  document.getElementById('chart-title').textContent =
+    `Häufigkeitsverteilung (${rangeMin}–${rangeMax})`;
 
   const wrapper = document.getElementById('chart-svg-wrapper');
   wrapper.innerHTML = renderHistogram(stats);
@@ -1321,6 +1378,12 @@ document.addEventListener('DOMContentLoaded', () => {
   countSelect.addEventListener('change', () => {
     countCustomInput.style.display = countSelect.value === 'custom' ? '' : 'none';
     if (countSelect.value === 'custom') countCustomInput.focus();
+  });
+
+  const rangeSelect = document.getElementById('range-select');
+  const rangeCustom = document.getElementById('range-custom');
+  rangeSelect.addEventListener('change', () => {
+    rangeCustom.style.display = rangeSelect.value === 'custom' ? 'flex' : 'none';
   });
 
   document.getElementById('generate-btn').addEventListener('click', generate);
