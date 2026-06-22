@@ -2,7 +2,7 @@
 
 A self-contained single-page app for comparing and visualising pseudo-random number generation (PRNG) algorithms. No build step, no dependencies — just open `index.html`.
 
-**Live demo:** https://claude.ai/code/artifact/26ad0810-796e-429c-a40a-77b5aa3bfb54
+**Live demo:** https://vergissberlin.github.io/random-checker/
 
 ---
 
