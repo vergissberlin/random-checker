@@ -101,6 +101,10 @@
     font-size: 13px;
     transition: background var(--transition), opacity var(--transition);
   }
+  button:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+  }
 
   .btn-icon {
     background: var(--surface2);
@@ -212,6 +216,17 @@
     align-items: center;
     flex-wrap: wrap;
     padding-top: 4px;
+  }
+
+  .controls-status {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-left: auto;
+    min-height: 18px;
+  }
+
+  .controls-status.error {
+    color: var(--danger);
   }
 
   /* Chart */
@@ -397,6 +412,7 @@
 
   .file-name-lbl { font-size: 12px; color: var(--text-muted); font-family: monospace; }
   .parse-count-lbl { font-size: 12px; color: var(--text-muted); margin-left: auto; }
+  .parse-warning-lbl { font-size: 12px; color: var(--warn); width: 100%; }
 
   /* Score display */
   .score-layout {
@@ -555,7 +571,7 @@
     Random Number Checker
   </div>
   <div class="header-actions">
-    <button class="btn-icon" id="theme-toggle" title="Theme wechseln">
+    <button class="btn-icon" id="theme-toggle" title="Theme wechseln" aria-label="Theme wechseln">
       <svg id="theme-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/>
         <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
@@ -628,12 +644,16 @@
         </svg>
         Generieren
       </button>
+      <button class="btn-secondary" id="cancel-generate-btn" style="display:none;">
+        Abbrechen
+      </button>
       <button class="btn-secondary" id="export-btn" disabled>
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
         </svg>
         CSV Export
       </button>
+      <span class="controls-status" id="generate-status" aria-live="polite"></span>
     </div>
   </div>
 
@@ -717,6 +737,7 @@
       <input type="file" id="human-file" accept=".csv,.txt,.tsv" style="display:none">
       <span class="file-name-lbl" id="human-file-name"></span>
       <span class="parse-count-lbl" id="human-parse-count"></span>
+      <span class="parse-warning-lbl" id="human-parse-warning"></span>
     </div>
 
     <div class="controls-actions" style="margin-top:16px;">
@@ -968,19 +989,38 @@ function computeStats(numbers, rangeMin, rangeMax) {
     chiBuckets[idx]++;
   }
   const expectedChi = n / rangeSize;
-  const chiSq = chiBuckets.reduce((acc, obs) => acc + (obs - expectedChi) ** 2 / expectedChi, 0);
+  const chiValid = expectedChi >= 5;
+  const chiSq = chiValid
+    ? chiBuckets.reduce((acc, obs) => acc + (obs - expectedChi) ** 2 / expectedChi, 0)
+    : null;
   const df = rangeSize - 1;
   const chiCrit = chiCritical95(Math.max(df, 1));
-  const chiPass = chiSq < chiCrit;
+  const chiPass = chiValid ? chiSq < chiCrit : null;
 
   return { min, max, mean, median, stdDev, buckets, numBuckets, bucketWidth,
-           rangeMin, rangeMax, chiSq, chiCrit, chiPass, n };
+           rangeMin, rangeMax, chiSq, chiCrit, chiPass, chiValid, n };
 }
 
 // ─── Chart Rendering ──────────────────────────────────────────────────────────
 
 function getStyle(varName) {
   return getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
+}
+
+function formatInt(value) {
+  return Number(value).toLocaleString('de-DE');
+}
+
+function formatDurationShort(ms) {
+  if (!Number.isFinite(ms) || ms < 0) return '0s';
+  const totalSeconds = Math.round(ms / 1000);
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+
+  if (hours > 0) return `${hours}h ${String(minutes).padStart(2, '0')}m`;
+  if (minutes > 0) return `${minutes}m ${String(seconds).padStart(2, '0')}s`;
+  return `${seconds}s`;
 }
 
 function renderHistogram(stats) {
@@ -1041,7 +1081,9 @@ function renderHistogram(stats) {
   for (let t = 0; t <= maxTicks; t++) {
     const i = Math.round(t * tickStep);
     const x = PAD.left + i * barW;
-    const labelVal = Math.round(rangeMin + i * bucketWidth);
+    const labelVal = t === maxTicks
+      ? rangeMax
+      : Math.min(Math.round(rangeMin + i * bucketWidth), rangeMax);
     svg += `<line x1="${x}" y1="${PAD.top + chartH}" x2="${x}" y2="${PAD.top + chartH + 4}" stroke="${border}" stroke-width="1"/>`;
     svg += `<text x="${x}" y="${PAD.top + chartH + 16}" text-anchor="middle" fill="${textMuted}" font-size="11" font-family="system-ui">${labelVal}</text>`;
   }
@@ -1077,11 +1119,17 @@ function updateStats(stats) {
   setStatValue('s-mean', stats.mean.toFixed(1));
   setStatValue('s-median', stats.median.toFixed(1));
   setStatValue('s-std', stats.stdDev.toFixed(2));
-  setStatValue('s-chi', stats.chiPass ? 'PASS' : 'FAIL');
-  document.getElementById('s-chi-sub').textContent = `χ² = ${stats.chiSq.toFixed(1)} (krit. ${stats.chiCrit.toFixed(2)})`;
 
   const chiCard = document.getElementById('chi-card');
   chiCard.classList.remove('chi-pass', 'chi-fail');
+  if (!stats.chiValid) {
+    setStatValue('s-chi', 'N/A');
+    document.getElementById('s-chi-sub').textContent = 'Chi² nicht belastbar (erwartete Häufigkeit < 5 pro Wert)';
+    return;
+  }
+
+  setStatValue('s-chi', stats.chiPass ? 'PASS' : 'FAIL');
+  document.getElementById('s-chi-sub').textContent = `χ² = ${stats.chiSq.toFixed(1)} (krit. ${stats.chiCrit.toFixed(2)})`;
   chiCard.classList.add(stats.chiPass ? 'chi-pass' : 'chi-fail');
 }
 
@@ -1101,6 +1149,334 @@ function updateAlgoInfo(key) {
 // ─── Main Logic ───────────────────────────────────────────────────────────────
 
 let lastNumbers = null;
+let generationWorker = null;
+let generationRunning = false;
+let generationStartedAt = null;
+let generationProgressState = null;
+const SETTINGS_STORAGE_KEY = 'random-checker-settings-v1';
+
+function selectHasOption(selectEl, value) {
+  if (!selectEl) return false;
+  return Array.from(selectEl.options).some((opt) => opt.value === value);
+}
+
+function getPersistedSettings() {
+  try {
+    const raw = localStorage.getItem(SETTINGS_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === 'object' ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function persistCurrentSettings() {
+  try {
+    const html = document.documentElement;
+    const payload = {
+      theme: html.getAttribute('data-theme') || 'dark',
+      algo: document.getElementById('algo-select').value,
+      countMode: document.getElementById('count-select').value,
+      countCustom: document.getElementById('count-custom-input').value,
+      seed: document.getElementById('seed-input').value,
+      rangeMode: document.getElementById('range-select').value,
+      rangeMin: document.getElementById('range-min').value,
+      rangeMax: document.getElementById('range-max').value
+    };
+    localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(payload));
+  } catch {
+    // ignore persistence issues (private mode, quota exceeded, etc.)
+  }
+}
+
+function applyPersistedSettings() {
+  const settings = getPersistedSettings();
+  if (!settings) return;
+
+  const html = document.documentElement;
+  if (settings.theme === 'dark' || settings.theme === 'light') {
+    html.setAttribute('data-theme', settings.theme);
+  }
+
+  const algoSelect = document.getElementById('algo-select');
+  const countSelect = document.getElementById('count-select');
+  const rangeSelect = document.getElementById('range-select');
+
+  if (typeof settings.algo === 'string' && selectHasOption(algoSelect, settings.algo)) {
+    algoSelect.value = settings.algo;
+  }
+  if (typeof settings.countMode === 'string' && selectHasOption(countSelect, settings.countMode)) {
+    countSelect.value = settings.countMode;
+  }
+  if (typeof settings.rangeMode === 'string' && selectHasOption(rangeSelect, settings.rangeMode)) {
+    rangeSelect.value = settings.rangeMode;
+  }
+
+  if (typeof settings.countCustom === 'string') {
+    document.getElementById('count-custom-input').value = settings.countCustom;
+  }
+  if (typeof settings.seed === 'string') {
+    document.getElementById('seed-input').value = settings.seed;
+  }
+  if (typeof settings.rangeMin === 'string') {
+    document.getElementById('range-min').value = settings.rangeMin;
+  }
+  if (typeof settings.rangeMax === 'string') {
+    document.getElementById('range-max').value = settings.rangeMax;
+  }
+}
+
+const generationWorkerSource = `
+function makeNative() {
+  return function() { return Math.random(); };
+}
+
+function makeLCG(seed) {
+  var a = 1664525;
+  var c = 1013904223;
+  var m = 4294967296;
+  var s = seed >>> 0;
+  return function() {
+    s = (Math.imul(a, s) + c) >>> 0;
+    return s / m;
+  };
+}
+
+function makeXorshift(seed) {
+  var s = (seed >>> 0) || 1;
+  return function() {
+    s ^= s << 13;
+    s ^= s >>> 17;
+    s ^= s << 5;
+    s >>>= 0;
+    return s / 4294967296;
+  };
+}
+
+function makeMT(seed) {
+  var N = 624;
+  var M = 397;
+  var MATRIX_A = 0x9908b0df;
+  var UPPER_MASK = 0x80000000;
+  var LOWER_MASK = 0x7fffffff;
+  var mt = new Uint32Array(N);
+  var mti = N + 1;
+
+  function init(s) {
+    mt[0] = s >>> 0;
+    for (var i = 1; i < N; i++) {
+      mt[i] = (Math.imul(1812433253, mt[i - 1] ^ (mt[i - 1] >>> 30)) + i) >>> 0;
+    }
+    mti = N;
+  }
+
+  function generate() {
+    var mag01 = [0, MATRIX_A];
+    var kk;
+    var y;
+    for (kk = 0; kk < N - M; kk++) {
+      y = (mt[kk] & UPPER_MASK) | (mt[kk + 1] & LOWER_MASK);
+      mt[kk] = mt[kk + M] ^ (y >>> 1) ^ mag01[y & 1];
+    }
+    for (; kk < N - 1; kk++) {
+      y = (mt[kk] & UPPER_MASK) | (mt[kk + 1] & LOWER_MASK);
+      mt[kk] = mt[kk + (M - N)] ^ (y >>> 1) ^ mag01[y & 1];
+    }
+    y = (mt[N - 1] & UPPER_MASK) | (mt[0] & LOWER_MASK);
+    mt[N - 1] = mt[M - 1] ^ (y >>> 1) ^ mag01[y & 1];
+    mti = 0;
+  }
+
+  init((seed >>> 0) || 1);
+  return function() {
+    var y;
+    if (mti >= N) generate();
+    y = mt[mti++];
+    y ^= y >>> 11;
+    y ^= (y << 7) & 0x9d2c5680;
+    y ^= (y << 15) & 0xefc60000;
+    y ^= y >>> 18;
+    return (y >>> 0) / 4294967296;
+  };
+}
+
+function makeMiddleSquare(seed) {
+  var s = Math.abs(seed) % 100000000 || 42;
+  return function() {
+    var sq = String(s * s).padStart(16, '0');
+    s = parseInt(sq.substring(4, 12), 10);
+    return s / 100000000;
+  };
+}
+
+function chiCritical95(df) {
+  var z = 1.6448536;
+  var a = 1 - 2 / (9 * df) + z * Math.sqrt(2 / (9 * df));
+  return df * a * a * a;
+}
+
+function makeRng(algoKey, seed) {
+  if (algoKey === 'lcg') return makeLCG(seed);
+  if (algoKey === 'xorshift') return makeXorshift(seed);
+  if (algoKey === 'mt') return makeMT(seed);
+  if (algoKey === 'midsquare') return makeMiddleSquare(seed);
+  return makeNative();
+}
+
+function valueAtPosition(counts, position, rangeMin) {
+  var cumulative = 0;
+  for (var i = 0; i < counts.length; i++) {
+    cumulative += counts[i];
+    if (cumulative >= position) return rangeMin + i;
+  }
+  return rangeMin + counts.length - 1;
+}
+
+self.onmessage = function(event) {
+  var data = event.data || {};
+  var algoKey = data.algoKey;
+  var count = data.count;
+  var seed = data.seed;
+  var rangeMin = data.rangeMin;
+  var rangeMax = data.rangeMax;
+
+  try {
+    var span = rangeMax - rangeMin + 1;
+    var rangeSize = span;
+    var numBuckets = Math.min(20, rangeSize);
+    var bucketWidth = rangeSize / numBuckets;
+    var buckets = new Array(numBuckets).fill(0);
+    var chiBuckets = new Uint32Array(rangeSize);
+    var numbers = new Uint32Array(count);
+    var rng = makeRng(algoKey, seed);
+
+    var min = Number.POSITIVE_INFINITY;
+    var max = Number.NEGATIVE_INFINITY;
+    var sum = 0;
+    var sumSq = 0;
+    var chunk = 50000;
+
+    for (var i = 0; i < count; i++) {
+      var value = Math.floor(rng() * span) + rangeMin;
+      numbers[i] = value;
+
+      if (value < min) min = value;
+      if (value > max) max = value;
+      sum += value;
+      sumSq += value * value;
+
+      var b = Math.min(Math.floor((value - rangeMin) / bucketWidth), numBuckets - 1);
+      buckets[b]++;
+      chiBuckets[value - rangeMin]++;
+
+      if ((i + 1) % chunk === 0 || i + 1 === count) {
+        self.postMessage({ type: 'progress', processed: i + 1, total: count });
+      }
+    }
+
+    var mean = sum / count;
+    var variance = sumSq / count - mean * mean;
+    if (variance < 0) variance = 0;
+    var stdDev = Math.sqrt(variance);
+
+    var median;
+    if (count % 2 === 0) {
+      var leftPos = count / 2;
+      var rightPos = leftPos + 1;
+      median = (valueAtPosition(chiBuckets, leftPos, rangeMin) + valueAtPosition(chiBuckets, rightPos, rangeMin)) / 2;
+    } else {
+      median = valueAtPosition(chiBuckets, (count + 1) / 2, rangeMin);
+    }
+
+    var expectedChi = count / rangeSize;
+    var chiValid = expectedChi >= 5;
+    var chiSq = null;
+    var chiCrit = chiCritical95(Math.max(rangeSize - 1, 1));
+    var chiPass = null;
+
+    if (chiValid) {
+      chiSq = 0;
+      for (var j = 0; j < chiBuckets.length; j++) {
+        var obs = chiBuckets[j];
+        chiSq += (obs - expectedChi) * (obs - expectedChi) / expectedChi;
+      }
+      chiPass = chiSq < chiCrit;
+    }
+
+    self.postMessage(
+      {
+        type: 'done',
+        stats: {
+          min: min,
+          max: max,
+          mean: mean,
+          median: median,
+          stdDev: stdDev,
+          buckets: buckets,
+          numBuckets: numBuckets,
+          bucketWidth: bucketWidth,
+          rangeMin: rangeMin,
+          rangeMax: rangeMax,
+          chiSq: chiSq,
+          chiCrit: chiCrit,
+          chiPass: chiPass,
+          chiValid: chiValid,
+          n: count
+        },
+        numbersBuffer: numbers.buffer
+      },
+      [numbers.buffer]
+    );
+  } catch (error) {
+    self.postMessage({
+      type: 'error',
+      message: error && error.message ? error.message : String(error)
+    });
+  }
+};
+`;
+
+function terminateGenerationWorker() {
+  if (!generationWorker) return;
+  generationWorker.terminate();
+  generationWorker = null;
+}
+
+function setGenerateStatus(message, isError = false) {
+  const statusEl = document.getElementById('generate-status');
+  statusEl.textContent = message;
+  statusEl.classList.toggle('error', isError);
+}
+
+function setGenerationRunning(isRunning) {
+  generationRunning = isRunning;
+  document.getElementById('generate-btn').disabled = isRunning;
+  const cancelBtn = document.getElementById('cancel-generate-btn');
+  cancelBtn.style.display = isRunning ? '' : 'none';
+  cancelBtn.disabled = !isRunning;
+  document.getElementById('export-btn').disabled = isRunning || !lastNumbers;
+}
+
+function cancelGeneration() {
+  if (!generationRunning) return;
+  const elapsed = generationStartedAt ? Date.now() - generationStartedAt : null;
+  terminateGenerationWorker();
+  setGenerationRunning(false);
+  generationStartedAt = null;
+  generationProgressState = null;
+  setGenerateStatus(elapsed !== null
+    ? `Generierung nach ${formatDurationShort(elapsed)} abgebrochen.`
+    : 'Generierung abgebrochen.');
+}
+
+function createGenerationWorker() {
+  const blob = new Blob([generationWorkerSource], { type: 'application/javascript' });
+  const url = URL.createObjectURL(blob);
+  const worker = new Worker(url);
+  URL.revokeObjectURL(url);
+  return worker;
+}
 
 function getRangeValues() {
   const sel = document.getElementById('range-select');
@@ -1116,6 +1492,8 @@ function getRangeValues() {
 }
 
 function generate() {
+  if (generationRunning) return;
+
   const algoKey = document.getElementById('algo-select').value;
   const countSelectVal = document.getElementById('count-select').value;
   const count = countSelectVal === 'custom'
@@ -1123,32 +1501,131 @@ function generate() {
     : parseInt(countSelectVal, 10);
   const seed = parseInt(document.getElementById('seed-input').value, 10) || 42;
   const { min: rangeMin, max: rangeMax } = getRangeValues();
-
-  const algo = ALGOS[algoKey];
-  const rng = algo.make(seed);
   const span = rangeMax - rangeMin + 1;
 
-  const numbers = [];
-  for (let i = 0; i < count; i++) {
-    numbers.push(Math.floor(rng() * span) + rangeMin);
+  if (!Number.isFinite(count) || count < 1) {
+    setGenerateStatus('Bitte eine gueltige Stichprobenanzahl eingeben.', true);
+    return;
+  }
+  if (!Number.isFinite(rangeMin) || !Number.isFinite(rangeMax) || span < 1) {
+    setGenerateStatus('Bitte einen gueltigen Wertebereich auswaehlen.', true);
+    return;
   }
 
-  lastNumbers = numbers;
-  document.getElementById('export-btn').disabled = false;
+  persistCurrentSettings();
+  generationStartedAt = Date.now();
+  generationProgressState = {
+    lastProcessed: 0,
+    lastTimestamp: generationStartedAt,
+    avgRatePerMs: 0
+  };
+  setGenerateStatus(`Generiere ${formatInt(count)} Zahlen ...`);
+  setGenerationRunning(true);
+  terminateGenerationWorker();
+  generationWorker = createGenerationWorker();
 
-  const stats = computeStats(numbers, rangeMin, rangeMax);
-  updateStats(stats);
-  document.getElementById('chart-title').textContent =
-    `Häufigkeitsverteilung (${rangeMin}–${rangeMax})`;
+  generationWorker.onmessage = (event) => {
+    const payload = event.data || {};
+    if (payload.type === 'progress') {
+      const processed = Number(payload.processed) || 0;
+      const total = Number(payload.total) || 0;
+      const percent = total > 0 ? Math.min((processed / total) * 100, 100) : 0;
+      const now = Date.now();
 
-  const wrapper = document.getElementById('chart-svg-wrapper');
-  wrapper.innerHTML = renderHistogram(stats);
+      if (!generationProgressState) {
+        generationProgressState = {
+          lastProcessed: processed,
+          lastTimestamp: now,
+          avgRatePerMs: 0
+        };
+      } else if (processed > generationProgressState.lastProcessed) {
+        const deltaProcessed = processed - generationProgressState.lastProcessed;
+        const deltaTime = now - generationProgressState.lastTimestamp;
+
+        if (deltaTime > 0) {
+          const instantRate = deltaProcessed / deltaTime;
+          const alpha = 0.3;
+          generationProgressState.avgRatePerMs = generationProgressState.avgRatePerMs > 0
+            ? alpha * instantRate + (1 - alpha) * generationProgressState.avgRatePerMs
+            : instantRate;
+        }
+
+        generationProgressState.lastProcessed = processed;
+        generationProgressState.lastTimestamp = now;
+      }
+
+      let etaLabel = '...';
+      if (generationStartedAt && processed > 0 && total > processed) {
+        const elapsed = now - generationStartedAt;
+        const fallbackRatePerMs = elapsed > 0 ? processed / elapsed : 0;
+        const ratePerMs = generationProgressState?.avgRatePerMs > 0
+          ? generationProgressState.avgRatePerMs
+          : fallbackRatePerMs;
+
+        if (ratePerMs > 0) {
+          const etaMs = (total - processed) / ratePerMs;
+          etaLabel = formatDurationShort(etaMs);
+        }
+      } else if (total > 0 && processed >= total) {
+        etaLabel = '0s';
+      }
+
+      setGenerateStatus(
+        `Generiere ${formatInt(processed)} / ${formatInt(total)} (${percent.toFixed(1)}%, ETA ${etaLabel}) ...`
+      );
+      return;
+    }
+
+    if (payload.type === 'done') {
+      const elapsed = generationStartedAt ? Date.now() - generationStartedAt : null;
+      lastNumbers = new Uint32Array(payload.numbersBuffer);
+      updateStats(payload.stats);
+      document.getElementById('chart-title').textContent = `Häufigkeitsverteilung (${rangeMin}–${rangeMax})`;
+      document.getElementById('chart-svg-wrapper').innerHTML = renderHistogram(payload.stats);
+      setGenerationRunning(false);
+      generationStartedAt = null;
+      generationProgressState = null;
+      setGenerateStatus(elapsed !== null
+        ? `Fertig: ${formatInt(lastNumbers.length)} Zahlen generiert in ${formatDurationShort(elapsed)}.`
+        : `Fertig: ${formatInt(lastNumbers.length)} Zahlen generiert.`);
+      terminateGenerationWorker();
+      return;
+    }
+
+    if (payload.type === 'error') {
+      setGenerationRunning(false);
+      generationStartedAt = null;
+      generationProgressState = null;
+      setGenerateStatus(`Fehler bei der Generierung: ${payload.message || 'Unbekannter Fehler'}`, true);
+      terminateGenerationWorker();
+    }
+  };
+
+  generationWorker.onerror = () => {
+    setGenerationRunning(false);
+    generationStartedAt = null;
+    generationProgressState = null;
+    setGenerateStatus('Fehler bei der Generierung im Hintergrund-Worker.', true);
+    terminateGenerationWorker();
+  };
+
+  generationWorker.postMessage({ algoKey, count, seed, rangeMin, rangeMax });
 }
 
 function exportCSV() {
   if (!lastNumbers) return;
-  const csv = 'index,value\n' + lastNumbers.map((v, i) => `${i + 1},${v}`).join('\n');
-  const blob = new Blob([csv], { type: 'text/csv' });
+  const chunkSize = 50000;
+  const csvParts = ['index,value\n'];
+  for (let start = 0; start < lastNumbers.length; start += chunkSize) {
+    const end = Math.min(start + chunkSize, lastNumbers.length);
+    let chunk = '';
+    for (let i = start; i < end; i++) {
+      chunk += `${i + 1},${lastNumbers[i]}\n`;
+    }
+    csvParts.push(chunk);
+  }
+
+  const blob = new Blob(csvParts, { type: 'text/csv;charset=utf-8' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
@@ -1163,12 +1640,27 @@ function clamp(v, lo, hi) { return v < lo ? lo : v > hi ? hi : v; }
 
 function parseHumanInput(text) {
   const tokens = text.split(/[\s,;|\t\r\n]+/);
-  const nums = [];
+  const numbers = [];
+  let invalidCount = 0;
+  let outOfRangeCount = 0;
+  let roundedCount = 0;
+
   for (const t of tokens) {
-    const v = parseFloat(t.trim());
-    if (!isNaN(v)) nums.push(Math.round(clamp(v, 0, 100)));
+    if (!t.trim()) continue;
+    const v = Number(t.trim());
+    if (!Number.isFinite(v)) {
+      invalidCount++;
+      continue;
+    }
+    if (v < 0 || v > 100) {
+      outOfRangeCount++;
+      continue;
+    }
+    if (!Number.isInteger(v)) roundedCount++;
+    numbers.push(Math.round(v));
   }
-  return nums;
+
+  return { numbers, invalidCount, outOfRangeCount, roundedCount };
 }
 
 function extractNumbersFromFile(text) {
@@ -1263,15 +1755,16 @@ function analyzeHumanLikelihood(numbers) {
   const chi20 = new Array(20).fill(0);
   for (const x of numbers) chi20[Math.min(Math.floor(x / 5), 19)]++;
   const expB = n / 20;
-  const chiVal = chi20.reduce((a, o) => a + (o - expB) ** 2 / expB, 0);
+  const chiValid = expB >= 5;
+  const chiVal = chiValid ? chi20.reduce((a, o) => a + (o - expB) ** 2 / expB, 0) : null;
   const chiCrit = 30.144; // α=0.05, df=19
   ind.push({
     name: 'Ungleichmäßigkeit (χ²)',
     desc: 'Menschliche Zahlenfolgen sind selten gleichmäßig verteilt – bevorzugte Zahlen erzeugen Häufungen.',
-    score: clamp((chiVal - chiCrit) / chiCrit * 100, 0, 100),
+    score: chiValid ? clamp((chiVal - chiCrit) / chiCrit * 100, 0, 100) : 50,
     weight: 0.20,
-    actual: chiVal.toFixed(1),
-    expected: '< ' + chiCrit + ' (zufällig)'
+    actual: chiValid ? chiVal.toFixed(1) : 'N/A',
+    expected: chiValid ? '< ' + chiCrit + ' (zufällig)' : 'mind. 100 Werte erforderlich'
   });
 
   const totalW = ind.reduce((a, b) => a + b.weight, 0);
@@ -1370,43 +1863,84 @@ function renderHumanResults(numbers) {
 document.addEventListener('DOMContentLoaded', () => {
   const algoSelect = document.getElementById('algo-select');
   const seedInput = document.getElementById('seed-input');
+  const countSelect = document.getElementById('count-select');
+  const countCustomInput = document.getElementById('count-custom-input');
+  const rangeSelect = document.getElementById('range-select');
+  const rangeCustom = document.getElementById('range-custom');
+  const rangeMinInput = document.getElementById('range-min');
+  const rangeMaxInput = document.getElementById('range-max');
+  const themeToggle = document.getElementById('theme-toggle');
+  const cancelGenerateBtn = document.getElementById('cancel-generate-btn');
 
-  algoSelect.addEventListener('change', () => {
+  function syncAlgoSelection() {
     const key = algoSelect.value;
     const seedable = ALGOS[key].seedable;
     seedInput.disabled = !seedable;
     updateAlgoInfo(key);
-  });
+  }
 
-  const countSelect = document.getElementById('count-select');
-  const countCustomInput = document.getElementById('count-custom-input');
-  countSelect.addEventListener('change', () => {
+  function syncCountSelection(focusCustom = false) {
     countCustomInput.style.display = countSelect.value === 'custom' ? '' : 'none';
-    if (countSelect.value === 'custom') countCustomInput.focus();
+    if (focusCustom && countSelect.value === 'custom') countCustomInput.focus();
+  }
+
+  function syncRangeSelection() {
+    rangeCustom.style.display = rangeSelect.value === 'custom' ? 'flex' : 'none';
+  }
+
+  applyPersistedSettings();
+  syncAlgoSelection();
+  syncCountSelection();
+  syncRangeSelection();
+
+  algoSelect.addEventListener('change', () => {
+    syncAlgoSelection();
+    persistCurrentSettings();
   });
 
-  const rangeSelect = document.getElementById('range-select');
-  const rangeCustom = document.getElementById('range-custom');
-  rangeSelect.addEventListener('change', () => {
-    rangeCustom.style.display = rangeSelect.value === 'custom' ? 'flex' : 'none';
+  seedInput.addEventListener('input', persistCurrentSettings);
+
+  countSelect.addEventListener('change', () => {
+    syncCountSelection(true);
+    persistCurrentSettings();
   });
+
+  countCustomInput.addEventListener('input', persistCurrentSettings);
+
+  rangeSelect.addEventListener('change', () => {
+    syncRangeSelection();
+    persistCurrentSettings();
+  });
+
+  rangeMinInput.addEventListener('input', persistCurrentSettings);
+  rangeMaxInput.addEventListener('input', persistCurrentSettings);
 
   document.getElementById('generate-btn').addEventListener('click', generate);
+  cancelGenerateBtn.addEventListener('click', cancelGeneration);
   document.getElementById('export-btn').addEventListener('click', exportCSV);
 
   // ── Human Checker ────────────────────────────────────────────────────────────
   const humanInput = document.getElementById('human-input');
   const analyzeBtn = document.getElementById('analyze-btn');
   const parseCountEl = document.getElementById('human-parse-count');
+  const parseWarningEl = document.getElementById('human-parse-warning');
   const humanErrorEl = document.getElementById('human-error');
 
   function updateParseState() {
-    const nums = parseHumanInput(humanInput.value);
+    const parsed = parseHumanInput(humanInput.value);
+    const nums = parsed.numbers;
+    const warnings = [];
+    if (parsed.outOfRangeCount > 0) warnings.push(`${parsed.outOfRangeCount} außerhalb 0-100 ignoriert`);
+    if (parsed.invalidCount > 0) warnings.push(`${parsed.invalidCount} ungueltig ignoriert`);
+    if (parsed.roundedCount > 0) warnings.push(`${parsed.roundedCount} gerundet`);
+
     if (nums.length === 0) {
       parseCountEl.textContent = '';
+      parseWarningEl.textContent = warnings.join(' | ');
       analyzeBtn.disabled = true;
     } else {
       parseCountEl.textContent = `${nums.length} Zahl${nums.length !== 1 ? 'en' : ''} erkannt${nums.length < 20 ? ' (mind. 20 empfohlen)' : ''}`;
+      parseWarningEl.textContent = warnings.join(' | ');
       analyzeBtn.disabled = nums.length < 5;
     }
     humanErrorEl.style.display = 'none';
@@ -1427,7 +1961,8 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   analyzeBtn.addEventListener('click', () => {
-    const nums = parseHumanInput(humanInput.value);
+    const parsed = parseHumanInput(humanInput.value);
+    const nums = parsed.numbers;
     if (nums.length < 5) {
       humanErrorEl.textContent = 'Bitte mindestens 5 Zahlen eingeben.';
       humanErrorEl.style.display = 'inline';
@@ -1436,14 +1971,18 @@ document.addEventListener('DOMContentLoaded', () => {
     renderHumanResults(nums);
   });
 
-  document.getElementById('theme-toggle').addEventListener('click', () => {
+  themeToggle.addEventListener('click', () => {
     const html = document.documentElement;
     const next = html.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
     html.setAttribute('data-theme', next);
+    persistCurrentSettings();
   });
 
+  window.addEventListener('beforeunload', terminateGenerationWorker);
+
   // Init
-  updateAlgoInfo(algoSelect.value);
+  setGenerateStatus('');
+  setGenerationRunning(false);
 });
 </script>
 </body>
